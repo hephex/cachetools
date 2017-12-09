@@ -112,17 +112,24 @@ def cachedmethod(cache, key=keys.hashkey, lock=None):
     return decorator
 
 
-def cachedasync(cache, key=keys.hashkey, lock=None):
+# TODO: lock, !cache, Python < 3.5 compatibility
+def cachedasync(cache, key=keys.hashkey):
     """Decorator to wrap a function with a memoizing coroutine that saves
     results in a cache.
 
     """
     def decorator(func):
-        fn = cached(cache, key, lock)(func)
-
         async def wrapper(*args, **kwargs):
-            return fn(*args, **kwargs)
-        #return  _update_wrapper(wrapper, func)
-        return wrapper
-
+            k = key(*args, **kwargs)
+            try:
+                return cache[k]
+            except KeyError:
+                pass  # key not found
+            v = await func(*args, **kwargs)
+            try:
+                cache[k] = v
+            except ValueError:
+                pass  # value too large
+            return v
+        return _update_wrapper(wrapper, func)
     return decorator
